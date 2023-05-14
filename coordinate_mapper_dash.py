@@ -1,8 +1,8 @@
 """
 @Author:    Pramod Kumar Yadav
-@email:     pramod.kumar@siemensgamesa.com
+@email:     pkyadav01234@gmail.com
 @Date:      April, 2023
-@Credit:    Paramjeet (paramjeet.gill@siemensgamesa.com)
+@Credit:    
 @status:    development
 @PythonVersion: python3
 
