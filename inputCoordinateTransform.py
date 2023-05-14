@@ -1,8 +1,8 @@
 """
 @Author:    Pramod Kumar Yadav
-@email:     
+@email:     pramod.kumar@siemensgamesa.com
 @Date:      May, 2023
-@Credit:    
+@Credit:    Paramjeet (paramjeet.gill@siemensgamesa.com)
 @status:    development
 @Version:   python3
 @Function:  Script to run coordinate transformation
