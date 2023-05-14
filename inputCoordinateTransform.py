@@ -1,8 +1,8 @@
 """
 @Author:    Pramod Kumar Yadav
-@email:     pramod.kumar@siemensgamesa.com
+@email:     
 @Date:      May, 2023
-@Credit:    Paramjeet (paramjeet.gill@siemensgamesa.com)
+@Credit:    
 @status:    development
 @Version:   python3
 @Function:  Script to run coordinate transformation
@@ -41,9 +41,9 @@ for p in ini_coord:
     print("Initial Coordinate:\t", str(p))
     point_f = ['%.5f' % elem for elem in p]
     # point_f=["{0:06.5f}".format(elem) for elem in p]
-    print("Initial Coordinate:\t", point_f)
-    point_in.append(point_f)
-
+#     print("Initial Coordinate:\t", point_f)
+#     point_in.append(point_f)
+    point_in.append(p)
     pout = cm.coordinateTransform(order, Tra, a_x, a_y, a_z, p, typ)
     print("Coordinate After Transformations:\t", str(pout))
     pout_round = [round(elem, 4) for elem in pout]
@@ -64,7 +64,7 @@ with open('OutputCoordTransf.txt', 'w') as f:
     f.write("------------------\t\t\t\t\t\t\t\t\t-------------------------------\n")
 
     for i in range(len(ini_coord)):
-        f.write("{}\t\t\t\t\t{}\n".format(point_in[i], point_out[i]))
+        f.write("{}{}\n".format(str(point_in[i]).ljust(52), point_out[i]))
 
 print("Data written as text file\n")
-input("Enter to Exit")
+# input("Enter to Exit")
