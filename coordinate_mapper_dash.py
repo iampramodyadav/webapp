@@ -1,8 +1,8 @@
 """
 @Author:    Pramod Kumar Yadav
-@email:     
+@email:     pramod.kumar@siemensgamesa.com
 @Date:      April, 2023
-@Credit:    
+@Credit:    Paramjeet (paramjeet.gill@siemensgamesa.com)
 @status:    development
 @PythonVersion: python3
 
@@ -18,18 +18,18 @@ from dash import Dash, dcc, html, Input, Output
 
 # *********** Function for coordinate transform ***********
 def orderMult(order, Tr, Rx, Ry, Rz, typ):
-    """[summary]
+    """Function to perform multiplication in required order or sequence
 
     Args:
-        order ([typ]): [description]
-        Tr ([typ]): [description]
-        Rx ([typ]): [description]
-        Ry ([typ]): [description]
-        Rz ([typ]): [description]
-        typ ([typ]): [description]
+        order ([str]): [order of transformation and rotation]
+        Tr ([list]): [Translation of a coordinate or point]
+        Rx ([float]): [anti-clockwise rotation along the x-axis]
+        Ry ([float]): [anti-clockwise rotation along the y-axis]
+        Rz ([float]): [anti-clockwise rotation along the z-axis]
+        typ ([int]): [1 & 2 (1: for coordinate transformation, 2: for point transformation with fix coordinate)]
 
     Returns:
-        [typ]: [description]
+        [matrix]: [Transformation matrix]
     """
     MatDict = {char: ord(char) for char in order}
     MatDict['T'] = Tr
@@ -53,19 +53,21 @@ def orderMult(order, Tr, Rx, Ry, Rz, typ):
 
 
 def coordinateTransform(order='TXYZ', Tra=[0, 0, 0], a_x=0, a_y=0, a_z=0, point=[0, 0, 0], typ=1):
-    """[summary]
+    """Function to perform coordinate transformation(typ-1) or point transformation(typ-2)
+            typ=1: Coordinate changing but point fix
+            typ-2: Point changing with respect to fix coordinate
 
     Args:
-        order (str, optional): [order of transformation and rotation]. Defaults to 'TXYZ'.
-        Tra (list, optional): [Translation of a coordinate or point]. Defaults to [0,0,0].
-        a_x (int, optional): [anti-clockwise rotation along the x-axis]. Defaults to 0.
-        a_y (int, optional): [anti-clockwise rotation along the y-axis]. Defaults to 0.
-        a_z (int, optional): [anti-clockwise rotation along the z-axis]. Defaults to 0.
-        point (list, optional): [point to be transformed]. Defaults to [0,0,0].
-        typ (int, optional): [1 & 2 (1: for coordinate transformation, 2: for point transformation with fix coordinate)]. Defaults to 1.
+        order (str): [order of transformation and rotation]. Defaults to 'TXYZ'.
+        Tra (list):  [Translation of a coordinate or point]. Defaults to [0,0,0].
+        a_x (float):   [anti-clockwise rotation along the x-axis]. Defaults to 0.
+        a_y (float):   [anti-clockwise rotation along the y-axis]. Defaults to 0.
+        a_z (float):   [anti-clockwise rotation along the z-axis]. Defaults to 0.
+        point (list): [point to be transformed]. Defaults to [0,0,0].
+        typ (int, optional): [1 & 2 (1: for coordinate transformation, 2: for point transformation with fix coordinate)].Defaults to 1.
 
     Returns:
-        [List]: [point coordinate after transformation]
+        [List]: point coordinate after transformation
     """
 
     Xc = np.matrix([[point[0]], [point[1]], [point[2]], [1]])
@@ -103,17 +105,17 @@ def coordinateTransform(order='TXYZ', Tra=[0, 0, 0], a_x=0, a_y=0, a_z=0, point=
 
 
 def coordinatePlot(order='TXYZ', Tra=[0, 0, 0], a_x=0, a_y=0, a_z=0, point=[1, 1, 1], typ=1, l=5):
-    """[summary]
+    """function to plot triad and point
 
     Args:
-        order (str, optional): [description]. Defaults to 'TXYZ'.
-        Tra (list, optional): [description]. Defaults to [0,0,0].
-        a_x (int, optional): [description]. Defaults to 0.
-        a_y (int, optional): [description]. Defaults to 0.
-        a_z (int, optional): [description]. Defaults to 0.
-        point (list, optional): [description]. Defaults to [0,0,0].
-        typ (int, optional): [description]. Defaults to 1.
-        l (int, optional): [description]. Defaults to 5.
+        order (str): [order of transformation and rotation]. Defaults to 'TXYZ'.
+        Tra (list):  [Translation of a coordinate or point]. Defaults to [0,0,0].
+        a_x (float):   [anti-clockwise rotation along the x-axis]. Defaults to 0.
+        a_y (float):   [anti-clockwise rotation along the y-axis]. Defaults to 0.
+        a_z (float):   [anti-clockwise rotation along the z-axis]. Defaults to 0.
+        point (list): [point to be transformed]. Defaults to [0,0,0].
+        typ (int, optional): [1 & 2 (1: for coordinate transformation, 2: for point transformation with fix coordinate)].Defaults to 1.
+        l (int, optional): [length of coordinate triad]. Defaults to 5.
     """
     Xf = coordinateTransform(order, Tra, a_x, a_y, a_z, point, typ)
 
@@ -185,7 +187,7 @@ app = Dash(__name__)
 
 app.layout = html.Div([
     html.Div([
-        html.Footer('pramod.kumar.yadav'),
+        html.Footer('pramod.kumar@siemensgamesa.com'),
         html.H2(children='Coordinate Transformation', style={'textAlign': 'center', 'color': 'rgba(0, 0, 235, 1)'}),
         html.Div([
             html.Br(),
