@@ -8,5 +8,8 @@
 ![](https://github.com/iampramodyadav/Dash-plotly/blob/main/DashBoard2.png)
 
 - ### Dashboard-2 layout (Joint Post Processing FEA)
+
+![](joint-dash.png)
+
 https://github.com/iampramodyadav/Dash-plotly/assets/72774410/594454e1-78ab-4ffd-837d-de2f9d28a470
 
