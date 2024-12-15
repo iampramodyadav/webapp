@@ -9,7 +9,9 @@ def triangle_area(p1, p2, p3):
     """Calculate the area of a triangle in 2D space."""
     v1 = np.array(p2) - np.array(p1)
     v2 = np.array(p3) - np.array(p1)
-    return abs(np.cross(v1, v2)) / 2
+    v1 = np.append(v1, 0)
+    v2 = np.append(v2, 0)
+    return abs(np.cross(v1, v2)[2]) / 2
 
 def get_centroid(points):
     """Calculate the centroid of points."""
@@ -37,8 +39,13 @@ def is_convex(points):
         p3 = points[(i + 2) % n]
         v1 = p2 - p1
         v2 = p3 - p2
+        
+        v1 = np.append(v1, 0)
+        v2 = np.append(v2, 0)
         cross_product = np.cross(v1, v2)
-        signs.append(np.sign(cross_product))
+        
+        signs.append(np.sign(cross_product)[2])
+
     return all(sign >= 0 for sign in signs) or all(sign <= 0 for sign in signs)
 
 def find_diagonal_triangulation(points):
@@ -274,12 +281,6 @@ def update_triangulation(relayout_data, update_clicks, reset_clicks, points, vie
                 range=[min(ordered_points[:,1])-1, max(ordered_points[:,1])+1]
             )
         })
-    else:
-        # pass
-        # Preserve zoom and pan state
-        for key, value in view_data.items():
-            if key.startswith(('xaxis', 'yaxis')):
-                layout_updates[key] = value
     
     fig.update_layout(layout_updates)
     
@@ -289,5 +290,5 @@ def update_triangulation(relayout_data, update_clicks, reset_clicks, points, vie
     return fig, area_text, convex_status, ordered_points.tolist(), view_data
 
 if __name__ == '__main__':
-    # app.run_server(debug=True)
-    app.run_server(host="0.0.0.0", port=8051)
+    app.run_server(debug=True)
+    # app.run_server(host="0.0.0.0", port=8051)
