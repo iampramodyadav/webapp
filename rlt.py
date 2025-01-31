@@ -43,7 +43,7 @@ app.layout = html.Div([
 
     dcc.Store(id='loads-store', data=[]),
     dcc.Store(id='targets-store', data=[]),
-
+    dcc.Download(id="download-data"), 
     html.Div([
         html.Div([
             html.H3("Input Systems", style={'color': '#2980b9'}),
@@ -71,6 +71,22 @@ app.layout = html.Div([
                 'fontSize': '16px'
             }),
             html.Div(id='target-inputs-container', style={'marginTop': '10px'}),
+            
+
+            
+            # Add the export button to your layout (in the input systems section)
+            html.Button('💾 Export Data', id='export-btn', style={
+                'width': '100%', 
+                'backgroundColor': '#3498db', 
+                'color': 'white',
+                'border': 'none',
+                'padding': '10px',
+                'borderRadius': '5px',
+                'cursor': 'pointer',
+                'fontSize': '16px',
+                'marginTop': '10px'
+            }),
+
         ], style={
             'width': '25%', 
             'padding': '15px',
@@ -423,7 +439,58 @@ def update_visualization(loads, targets):
     )
 
     return fig, table
-
+# Add this callback at the end of your existing callbacks
+@app.callback(
+    Output('download-data', 'data'),
+    Input('export-btn', 'n_clicks'),
+    [State('loads-store', 'data'),
+     State('targets-store', 'data'),
+     State('results-container', 'children')],
+    prevent_initial_call=True
+)
+def export_data(n_clicks, loads, targets, results):
+    if n_clicks is None:
+        return dash.no_update
+    
+    # Create formatted text content
+    content = "=== Rigid Load Transfer Analysis Report ===\n\n"
+    
+    # Add loads information
+    content += "=== Input Load Systems ===\n"
+    for i, load in enumerate(loads):
+        content += f"Load System {i+1}:\n"
+        content += f"  Position (X,Y,Z): {load['translation']}\n"
+        content += f"  Rotation Order: {load['rotation_order']}\n"
+        content += f"  Euler Angles (rad): {load['euler_angles']}\n"
+        content += f"  Force (X,Y,Z): {load['force']}\n"
+        content += f"  Moment (X,Y,Z): {load['moment']}\n"
+        content += f"  Color: {load['color']['hex']}\n\n"
+    
+    # Add targets information
+    content += "\n=== Target Systems ===\n"
+    for i, target in enumerate(targets):
+        content += f"Target System {i+1}:\n"
+        content += f"  Position (X,Y,Z): {target['translation']}\n"
+        content += f"  Rotation Order: {target['rotation_order']}\n"
+        content += f"  Euler Angles (rad): {target['euler_angles']}\n"
+        content += f"  Color: {target['color']['hex']}\n\n"
+    
+    # Add results
+    content += "\n=== Calculation Results ===\n"
+    if results and 'props' in results and 'data' in results['props']:
+        for row in results['props']['data']:
+            content += f"{row['System']}:\n"
+            content += f"  Force: X={row['Fx']}, Y={row['Fy']}, Z={row['Fz']}\n"
+            content += f"  Moment: X={row['Mx']}, Y={row['My']}, Z={row['Mz']}\n\n"
+    
+    content += "\n=== End of Report ==="
+    
+    # Create timestamp for filename
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"RLT_Report_{timestamp}.txt"
+    
+    return dict(content=content, filename=filename)
 # Visualization helpers
 def create_triad(position, R, color):
     scale = 1.0
@@ -454,16 +521,32 @@ def create_triad(position, R, color):
         )
     ]
 
+# def create_vector(position, vector, color, name):
+#     return go.Scatter3d(
+#         x=[position[0], position[0] + vector[0]],
+#         y=[position[1], position[1] + vector[1]],
+#         z=[position[2], position[2] + vector[2]],
+#         mode='lines+markers',
+#         marker=dict(size=3, color=color),
+#         line=dict(color=color, width=4),
+#         name=name
+#     )
+# Modify vector creation with dynamic scaling
 def create_vector(position, vector, color, name):
-    return go.Scatter3d(
-        x=[position[0], position[0] + vector[0]],
-        y=[position[1], position[1] + vector[1]],
-        z=[position[2], position[2] + vector[2]],
-        mode='lines+markers',
-        marker=dict(size=3, color=color),
-        line=dict(color=color, width=4),
+    magnitude = np.linalg.norm(vector)
+    scale = max(0.5, min(2.0, magnitude/10))  # Auto-scale based on magnitude
+    return go.Cone(
+        x=[position[0] + vector[0]],
+        y=[position[1] + vector[1]],
+        z=[position[2] + vector[2]],
+        u=[vector[0]*scale],
+        v=[vector[1]*scale],
+        w=[vector[2]*scale],
+        sizemode='absolute',
+        sizeref=0.5,
+        anchor='tail',
+        showscale=False,
         name=name
     )
-
 if __name__ == '__main__':
     app.run_server(debug=True, use_reloader=False)
