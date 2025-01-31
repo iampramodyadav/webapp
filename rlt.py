@@ -4,6 +4,7 @@ import dash_daq as daq
 import plotly.graph_objects as go
 import numpy as np
 # Calculation functions
+import plot_3d as plot3d
 def create_rotation_matrix(euler_angles, rotation_order, translation):
     R = np.eye(3)
     for axis in reversed(rotation_order.lower()):
@@ -341,7 +342,7 @@ def update_visualization(loads, targets):
 
     # Add global system
     fig.add_trace(go.Scatter3d(x=[0], y=[0], z=[0], mode='markers',
-                              marker=dict(size=2, color='black'), name='Global'))
+                              marker=dict(size=4, color='black'), name='Global'))
 
     # Process loads
     for i, load in enumerate(loads):
@@ -358,14 +359,23 @@ def update_visualization(loads, targets):
             color = load['color']['hex']
 
             # Add coordinate system
-            fig.add_traces(create_triad(pos, R, color))
+            fig_load = plot3d.plot_triad(np.array(load['euler_angles']), 
+                                         load['rotation_order'],
+                                         load['translation'], 
+                                         tip_size = 0.5, len_triad = 1,colors_arr = color,
+                                         triad_name = f"InputCSYS{i}", legendgroup= f'group{i}')
+            fig = go.Figure(data = fig.data + fig_load.data)
+            # fig.add_traces(create_triad(pos, R, color))
 
             # Add vectors
             if 'force' in load:
-                fig.add_trace(create_vector(pos, R @ load['force'], color, f'Load {i+1} Force'))
+                fig_force = create_vector(pos, R @ load['force'], color, f'Force:{load['force']}', legendgroup= f'force_group{i}',triad_name = f"Load{i}")
+                fig = go.Figure(data = fig.data + fig_force.data)
             if 'moment' in load:
-                fig.add_trace(create_vector(pos, R @ load['moment'], color, f'Load {i+1} Moment'))
-
+                # fig.add_trace(create_vector(pos, R @ load['moment'], color, f'Load {i+1} Moment'))
+                fig_mom  = create_vector(pos, R @ load['moment'], color, f'Force:{load['moment']}', legendgroup= f'force_group{i}',triad_name = f"Load{i}")
+                fig = go.Figure(data = fig.data + fig_mom.data)
+                
         except Exception as e:
             print(f"Error processing load {i}: {e}")
 
@@ -384,7 +394,14 @@ def update_visualization(loads, targets):
             color = target['color']['hex']
 
             # Add coordinate system
-            fig.add_traces(create_triad(pos_target, R_target, color))
+            fig_load = plot3d.plot_triad(np.array(target['euler_angles']), 
+                                         target['rotation_order'],
+                                         target['translation'], 
+                                         tip_size = 0.5, len_triad = 1,colors_arr = color,
+                                         triad_name = f"OutCSYS{i}", legendgroup= f'Out_group{i}')
+            fig = go.Figure(data = fig.data + fig_load.data)
+            
+            # fig.add_traces(create_triad(pos_target, R_target, color))
 
             # Calculate results
             total_F, total_M = np.zeros(3), np.zeros(3)
@@ -416,14 +433,18 @@ def update_visualization(loads, targets):
     # Configure plot
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title='X', backgroundcolor='white'),
-            yaxis=dict(title='Y', backgroundcolor='white'),
-            zaxis=dict(title='Z', backgroundcolor='white'),
+            # xaxis=dict(title='X', backgroundcolor='white'),
+            # yaxis=dict(title='Y', backgroundcolor='white'),
+            # zaxis=dict(title='Z', backgroundcolor='white'),
+            xaxis=dict(title='X'),
+            yaxis=dict(title='Y'),
+            zaxis=dict(title='Z'),
             aspectmode='cube',
             camera=dict(up=dict(x=0, y=0, z=1))
         ),
         margin=dict(l=0, r=0, b=0, t=30),
-        showlegend=True
+        showlegend=True,
+        scene_aspectmode='data'
     )
 
     # Create results table
@@ -491,62 +512,31 @@ def export_data(n_clicks, loads, targets, results):
     filename = f"RLT_Report_{timestamp}.txt"
     
     return dict(content=content, filename=filename)
+    
 # Visualization helpers
-def create_triad(position, R, color):
-    scale = 1.0
-    return [
-        go.Scatter3d(
-            x=[position[0], position[0] + R[0,0]*scale],
-            y=[position[1], position[1] + R[1,0]*scale],
-            z=[position[2], position[2] + R[2,0]*scale],
-            mode='lines',
-            line=dict(color=color, width=4),
-            showlegend=False
-        ),
-        go.Scatter3d(
-            x=[position[0], position[0] + R[0,1]*scale],
-            y=[position[1], position[1] + R[1,1]*scale],
-            z=[position[2], position[2] + R[2,1]*scale],
-            mode='lines',
-            line=dict(color=color, width=4),
-            showlegend=False
-        ),
-        go.Scatter3d(
-            x=[position[0], position[0] + R[0,2]*scale],
-            y=[position[1], position[1] + R[1,2]*scale],
-            z=[position[2], position[2] + R[2,2]*scale],
-            mode='lines',
-            line=dict(color=color, width=4),
-            showlegend=False
-        )
-    ]
-
-# def create_vector(position, vector, color, name):
-#     return go.Scatter3d(
-#         x=[position[0], position[0] + vector[0]],
-#         y=[position[1], position[1] + vector[1]],
-#         z=[position[2], position[2] + vector[2]],
-#         mode='lines+markers',
-#         marker=dict(size=3, color=color),
-#         line=dict(color=color, width=4),
-#         name=name
-#     )
-# Modify vector creation with dynamic scaling
-def create_vector(position, vector, color, name):
+def create_vector(position, vector, color, name, legendgroup,triad_name):
     magnitude = np.linalg.norm(vector)
+    # print(magnitude)
     scale = max(0.5, min(2.0, magnitude/10))  # Auto-scale based on magnitude
-    return go.Cone(
-        x=[position[0] + vector[0]],
-        y=[position[1] + vector[1]],
-        z=[position[2] + vector[2]],
-        u=[vector[0]*scale],
-        v=[vector[1]*scale],
-        w=[vector[2]*scale],
-        sizemode='absolute',
-        sizeref=0.5,
-        anchor='tail',
-        showscale=False,
-        name=name
-    )
+    
+    if magnitude<1e-6:
+        vector_x = 0.00
+        vector_y = 0.00
+        vector_z = 0.00
+    else:
+        vector_x = vector[0]/magnitude
+        vector_y = vector[1]/magnitude
+        vector_z = vector[2]/magnitude    
+        
+    x=float(position[0]) + vector_x*scale
+    y=float(position[1]) + vector_y*scale
+    z=float(position[2]) + vector_z*scale
+    
+    list_load = [[float(position[0]),float(position[1]),float(position[2])],[x,y,z]]
+    # print(list_load)
+    fig = plot3d.plot_lines_from_points(list_load, colors_tip=[color],size_tip=0.3, tip_hover_text=[f'{name}'], legendgroup = legendgroup,triad_name=triad_name)
+    # fig = plot3d.plot_lines_from_points(list_load)
+    fig.update_layout(showlegend=False)
+    return fig
 if __name__ == '__main__':
     app.run_server(debug=True, use_reloader=False)
