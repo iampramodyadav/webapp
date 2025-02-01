@@ -1,9 +1,13 @@
 import dash
 from dash import dcc, html, Input, Output, State, callback, dash_table, ALL
-import dash_daq as daq
 import plotly.graph_objects as go
 import numpy as np
-# Calculation functions
+import json
+import base64
+import io
+# import dash_daq as daq
+import plot_3d as plot3d
+
 import plot_3d as plot3d
 def create_rotation_matrix(euler_angles, rotation_order, translation):
     R = np.eye(3)
@@ -30,6 +34,33 @@ def rigid_load_transfer(force_local_A, moment_local_A, R_A, point_A_global, R_B,
     r = point_A_global - point_B_global
     moment_global += np.cross(r, force_global)
     return R_B.T @ force_global, R_B.T @ moment_global
+    
+# Visualization helpers
+def create_vector(position, vector, color=None, name=None, legendgroup= None,triad_name=None):
+    magnitude = np.linalg.norm(vector)
+    # print(magnitude)
+    scale = max(0.5, min(2.0, magnitude/10))  # Auto-scale based on magnitude
+    
+    if magnitude<1e-6:
+        vector_x = 0.00
+        vector_y = 0.00
+        vector_z = 0.00
+    else:
+        vector_x = vector[0]/magnitude
+        vector_y = vector[1]/magnitude
+        vector_z = vector[2]/magnitude    
+        
+    x=float(position[0]) + vector_x*scale
+    y=float(position[1]) + vector_y*scale
+    z=float(position[2]) + vector_z*scale
+    
+    list_load = [[float(position[0]),float(position[1]),float(position[2])],[x,y,z]]
+    # print(list_load)
+    fig = plot3d.plot_lines_from_points(list_load, colors_tip=[color],size_tip=0.3, tip_hover_text=[name], legendgroup = legendgroup,triad_name=triad_name)
+    # fig = plot3d.plot_lines_from_points(list_load)
+    fig.update_layout(showlegend=False)
+    return fig 
+    
 # Initialize Dash app
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
@@ -48,6 +79,20 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             html.H3("Input Systems", style={'color': '#2980b9'}),
+            
+            dcc.Upload(id='upload-data',
+                children=html.Button('📁 Upload Input File', style={
+                    'width': '100%', 
+                    'backgroundColor': '#3498db', 
+                    'color': 'white',
+                    'border': 'none',
+                    'padding': '10px',
+                    'borderRadius': '5px',
+                    'cursor': 'pointer',
+                    'fontSize': '16px',
+                    'marginBottom': '10px'
+                }),multiple=False,),
+                       
             html.Button('➕ Add Load System', id='add-load-btn', n_clicks=0, style={
                 'width': '100%', 
                 'backgroundColor': '#27ae60', 
@@ -204,11 +249,11 @@ def update_input_components(loads, targets):
                         html.Div([
                             html.Label("Rotation (deg):", style={'minWidth': '100px'}),
                             html.Div([  # Container for inputs
-                                dcc.Input(value=np.degrees(item['euler_angles'][0]), type='number',
+                                dcc.Input(value=np.array(item['euler_angles'][0]), type='number',
                                          id={'type': 'rx', 'index': i, 'input-type': input_type},style={'width': '50px'}),
-                                dcc.Input(value=np.degrees(item['euler_angles'][1]), type='number',
+                                dcc.Input(value=np.array(item['euler_angles'][1]), type='number',
                                          id={'type': 'ry', 'index': i, 'input-type': input_type},style={'width': '50px'}),
-                                dcc.Input(value=np.degrees(item['euler_angles'][2]), type='number',
+                                dcc.Input(value=np.array(item['euler_angles'][2]), type='number',
                                          id={'type': 'rz', 'index': i, 'input-type': input_type},style={'width': '50px'}),
                             ], style={'display': 'flex', 'gap': '5px'})
                         ], style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'})
@@ -223,7 +268,7 @@ def update_input_components(loads, targets):
                                  id={'type': 'fy', 'index': i, 'input-type': input_type}, style={'width': '50px'}),
                         dcc.Input(value=item.get('force', [0,0,0])[2], type='number',
                                  id={'type': 'fz', 'index': i, 'input-type': input_type}, style={'width': '50px'}),
-                    ], className='input-group', style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'}) if input_type == 'load' else None,
+                    ], className='input-group', style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'}) if input_type == 'load' else html.Div(hidden=True),
                         
                     html.Div([
                         html.Label("Moment (X,Y,Z):"),
@@ -233,7 +278,7 @@ def update_input_components(loads, targets):
                                  id={'type': 'my', 'index': i, 'input-type': input_type},style={'width': '50px'}),
                         dcc.Input(value=item.get('moment', [0,0,0])[2], type='number',
                                  id={'type': 'mz', 'index': i, 'input-type': input_type},style={'width': '50px'}),
-                    ], className='input-group', style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'}) if input_type == 'load' else None
+                    ], className='input-group', style={'display': 'flex', 'alignItems': 'center', 'gap': '5px'}) if input_type == 'load' else html.Div(hidden=True)
                 ], style={
                     'border': f'2px solid {system_color}',
                     'borderRadius': '8px',
@@ -246,6 +291,7 @@ def update_input_components(loads, targets):
 
     return create_controls(loads, 'load'), create_controls(targets, 'target')
 # Input updates callback
+
 @app.callback(
     [Output('loads-store', 'data', allow_duplicate=True),
      Output('targets-store', 'data', allow_duplicate=True)],
@@ -261,72 +307,112 @@ def update_input_components(loads, targets):
      Input({'type': 'mx', 'index': ALL, 'input-type': ALL}, 'value'),
      Input({'type': 'my', 'index': ALL, 'input-type': ALL}, 'value'),
      Input({'type': 'mz', 'index': ALL, 'input-type': ALL}, 'value'),
-     Input({'type': 'rot-order', 'index': ALL, 'input-type': ALL}, 'value'),
-     # Input({'type': 'color-picker', 'index': ALL, 'input-type': ALL}, 'value')
-    ],
+     Input({'type': 'rot-order', 'index': ALL, 'input-type': ALL}, 'value')],
     [State('loads-store', 'data'),
      State('targets-store', 'data')],
     prevent_initial_call=True
 )
 def update_stores(tx, ty, tz, rx, ry, rz, 
-                  fx, fy, fz, mx, my, mz, rot_orders, 
-                  # colors, 
-                  loads, targets):
+                 fx, fy, fz, mx, my, mz, rot_orders,
+                 loads, targets):
     ctx = dash.callback_context
-    # print("Triggered Context:", ctx.triggered)
+    if not ctx.triggered:
+        return loads, targets
 
-    # inputs = {prop['prop_id']: val for prop, val in zip(ctx.triggered, ctx.triggered[0]['value'])} if ctx.triggered else {}
-    inputs = {prop['prop_id']: prop['value'] for prop in ctx.triggered} if ctx.triggered else {}
+    # Create dictionaries to store all input values by their type and index
+    input_values = {'load': {}, 'target': {}}
 
+    # Get the triggered input info
+    triggered = [t['prop_id'] for t in ctx.triggered]
+    
+    # Process all inputs
+    for trigger_idx, trigger in enumerate(triggered):
+        # Parse the triggered component ID
+        if '.' in trigger:  # Ensure it's a valid trigger
+            component_id = trigger.split('.')[0]
+            try:
+                parsed_id = eval(component_id)
+                input_type = parsed_id['input-type']
+                index = parsed_id['index']
+                value_type = parsed_id['type']
+                
+                # Initialize nested dictionaries if they don't exist
+                if index not in input_values[input_type]:
+                    input_values[input_type][index] = {}
+                
+                # Get the corresponding value from the triggered input
+                value = ctx.triggered[trigger_idx]['value']
+                input_values[input_type][index][value_type] = value
+                
+            except Exception as e:
+                print(f"Error processing trigger {trigger}: {e}")
+                continue
 
     # Update loads
     for i in range(len(loads)):
-        # Translation
-        loads[i]['translation'] = [
-            next((v for pid, v in zip(ctx.inputs.keys(), tx) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), ty) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), tz) if f'"index":{i}' in pid and 'load' in pid), 0)
-        ]
-        
-        # Rotation
-        loads[i]['euler_angles'] = np.radians([
-            next((v for pid, v in zip(ctx.inputs.keys(), rx) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), ry) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), rz) if f'"index":{i}' in pid and 'load' in pid), 0)
-        ]).tolist()
-        
-        # Force/Moment
-        loads[i]['force'] = [
-            next((v for pid, v in zip(ctx.inputs.keys(), fx) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), fy) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), fz) if f'"index":{i}' in pid and 'load' in pid), 0)
-        ]
-        loads[i]['moment'] = [
-            next((v for pid, v in zip(ctx.inputs.keys(), mx) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), my) if f'"index":{i}' in pid and 'load' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), mz) if f'"index":{i}' in pid and 'load' in pid), 0)
-        ]
-        
-        # Other properties
-        loads[i]['rotation_order'] = next((v for pid, v in zip(ctx.inputs.keys(), rot_orders) if f'"index":{i}' in pid and 'load' in pid), 'xyz')
-        # loads[i]['color'] = next((v for pid, v in zip(ctx.inputs.keys(), colors) if f'"index":{i}' in pid and 'load' in pid), {'hex': '#000000'})
+        if i in input_values.get('load', {}):
+            vals = input_values['load'][i]
+            
+            # Update translation
+            if any(k in vals for k in ['tx', 'ty', 'tz']):
+                loads[i]['translation'] = [
+                    vals.get('tx', loads[i]['translation'][0]),
+                    vals.get('ty', loads[i]['translation'][1]),
+                    vals.get('tz', loads[i]['translation'][2])
+                ]
+            
+            # Update rotation angles
+            if any(k in vals for k in ['rx', 'ry', 'rz']):
+                loads[i]['euler_angles'] = np.array([
+                    vals.get('rx', loads[i]['euler_angles'][0]),
+                    vals.get('ry', loads[i]['euler_angles'][1]),
+                    vals.get('rz', loads[i]['euler_angles'][2])
+                ]).tolist()
+            
+            # Update force
+            if any(k in vals for k in ['fx', 'fy', 'fz']):
+                loads[i]['force'] = [
+                    vals.get('fx', loads[i]['force'][0]),
+                    vals.get('fy', loads[i]['force'][1]),
+                    vals.get('fz', loads[i]['force'][2])
+                ]
+            
+            # Update moment
+            if any(k in vals for k in ['mx', 'my', 'mz']):
+                loads[i]['moment'] = [
+                    vals.get('mx', loads[i]['moment'][0]),
+                    vals.get('my', loads[i]['moment'][1]),
+                    vals.get('mz', loads[i]['moment'][2])
+                ]
+            
+            # Update rotation order
+            if 'rot-order' in vals:
+                loads[i]['rotation_order'] = vals['rot-order']
 
     # Update targets
     for i in range(len(targets)):
-        targets[i]['translation'] = [
-            next((v for pid, v in zip(ctx.inputs.keys(), tx) if f'"index":{i}' in pid and 'target' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), ty) if f'"index":{i}' in pid and 'target' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), tz) if f'"index":{i}' in pid and 'target' in pid), 0)
-        ]
-        
-        targets[i]['euler_angles'] = np.radians([
-            next((v for pid, v in zip(ctx.inputs.keys(), rx) if f'"index":{i}' in pid and 'target' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), ry) if f'"index":{i}' in pid and 'target' in pid), 0),
-            next((v for pid, v in zip(ctx.inputs.keys(), rz) if f'"index":{i}' in pid and 'target' in pid), 0)
-        ]).tolist()
-        
-        targets[i]['rotation_order'] = next((v for pid, v in zip(ctx.inputs.keys(), rot_orders) if f'"index":{i}' in pid and 'target' in pid), 'xyz')
-        # targets[i]['color'] = next((v for pid, v in zip(ctx.inputs.keys(), colors) if f'"index":{i}' in pid and 'target' in pid), {'hex': '#000000'})
+        if i in input_values.get('target', {}):
+            vals = input_values['target'][i]
+            
+            # Update translation
+            if any(k in vals for k in ['tx', 'ty', 'tz']):
+                targets[i]['translation'] = [
+                    vals.get('tx', targets[i]['translation'][0]),
+                    vals.get('ty', targets[i]['translation'][1]),
+                    vals.get('tz', targets[i]['translation'][2])
+                ]
+            
+            # Update rotation angles
+            if any(k in vals for k in ['rx', 'ry', 'rz']):
+                targets[i]['euler_angles'] = np.array([
+                    vals.get('rx', targets[i]['euler_angles'][0]),
+                    vals.get('ry', targets[i]['euler_angles'][1]),
+                    vals.get('rz', targets[i]['euler_angles'][2])
+                ]).tolist()
+            
+            # Update rotation order
+            if 'rot-order' in vals:
+                targets[i]['rotation_order'] = vals['rot-order']
 
     return loads, targets
 # Visualization callback
@@ -351,29 +437,29 @@ def update_visualization(loads, targets):
                 load['color'] = {'hex': load['color']}
 
             R, pos = create_rotation_matrix(
-                # np.radians(load['euler_angles']),
-                np.array(load['euler_angles']),
+                np.radians(load['euler_angles']),
+                # np.array(load['euler_angles']),
                 load['rotation_order'],
                 load['translation']
             )
             color = load['color']['hex']
 
             # Add coordinate system
-            fig_load = plot3d.plot_triad(np.array(load['euler_angles']), 
+            fig_load = plot3d.plot_triad(np.radians(load['euler_angles']), 
                                          load['rotation_order'],
                                          load['translation'], 
                                          tip_size = 0.5, len_triad = 1,colors_arr = color,
-                                         triad_name = f"InputCSYS{i}", legendgroup= f'group{i}')
+                                         triad_name = f"InputCSYS{i+1}", legendgroup= f'group{i}')
             fig = go.Figure(data = fig.data + fig_load.data)
             # fig.add_traces(create_triad(pos, R, color))
 
             # Add vectors
             if 'force' in load:
-                fig_force = create_vector(pos, R @ load['force'], color, f'Force:{load['force']}', legendgroup= f'force_group{i}',triad_name = f"Load{i}")
+                fig_force = create_vector(pos, R @ load['force'], color, f'Force:{load['force']}', legendgroup= f'force_group{i}',triad_name = f"Force{i+1}")
                 fig = go.Figure(data = fig.data + fig_force.data)
             if 'moment' in load:
                 # fig.add_trace(create_vector(pos, R @ load['moment'], color, f'Load {i+1} Moment'))
-                fig_mom  = create_vector(pos, R @ load['moment'], color, f'Force:{load['moment']}', legendgroup= f'force_group{i}',triad_name = f"Load{i}")
+                fig_mom  = create_vector(pos, R @ load['moment'], color, f'Moment:{load['moment']}', legendgroup= f'force_group{i}',triad_name = f"Moment{i+1}")
                 fig = go.Figure(data = fig.data + fig_mom.data)
                 
         except Exception as e:
@@ -386,19 +472,19 @@ def update_visualization(loads, targets):
                 target['color'] = {'hex': target['color']}
 
             R_target, pos_target = create_rotation_matrix(
-                # np.radians(target['euler_angles']),
-                np.array(target['euler_angles']),
+                np.radians(target['euler_angles']),
+                # np.array(target['euler_angles']),
                 target['rotation_order'],
                 target['translation']
             )
             color = target['color']['hex']
 
             # Add coordinate system
-            fig_load = plot3d.plot_triad(np.array(target['euler_angles']), 
+            fig_load = plot3d.plot_triad(np.radians(target['euler_angles']), 
                                          target['rotation_order'],
                                          target['translation'], 
                                          tip_size = 0.5, len_triad = 1,colors_arr = color,
-                                         triad_name = f"OutCSYS{i}", legendgroup= f'Out_group{i}')
+                                         triad_name = f"OutCSYS{i+1}", legendgroup= f'Out_group{i}')
             fig = go.Figure(data = fig.data + fig_load.data)
             
             # fig.add_traces(create_triad(pos_target, R_target, color))
@@ -407,8 +493,8 @@ def update_visualization(loads, targets):
             total_F, total_M = np.zeros(3), np.zeros(3)
             for load in loads:
                 R_load, pos_load = create_rotation_matrix(
-                    # np.radians(load['euler_angles']),
-                    np.array(load['euler_angles']),
+                    np.radians(load['euler_angles']),
+                    # np.array(load['euler_angles']),
                     load['rotation_order'],
                     load['translation']
                 )
@@ -460,7 +546,7 @@ def update_visualization(loads, targets):
     )
 
     return fig, table
-# Add this callback at the end of your existing callbacks
+
 @app.callback(
     Output('download-data', 'data'),
     Input('export-btn', 'n_clicks'),
@@ -482,7 +568,7 @@ def export_data(n_clicks, loads, targets, results):
         content += f"Load System {i+1}:\n"
         content += f"  Position (X,Y,Z): {load['translation']}\n"
         content += f"  Rotation Order: {load['rotation_order']}\n"
-        content += f"  Euler Angles (rad): {load['euler_angles']}\n"
+        content += f"  Euler Angles (deg): {load['euler_angles']}\n"
         content += f"  Force (X,Y,Z): {load['force']}\n"
         content += f"  Moment (X,Y,Z): {load['moment']}\n"
         content += f"  Color: {load['color']['hex']}\n\n"
@@ -493,7 +579,7 @@ def export_data(n_clicks, loads, targets, results):
         content += f"Target System {i+1}:\n"
         content += f"  Position (X,Y,Z): {target['translation']}\n"
         content += f"  Rotation Order: {target['rotation_order']}\n"
-        content += f"  Euler Angles (rad): {target['euler_angles']}\n"
+        content += f"  Euler Angles (deg): {target['euler_angles']}\n"
         content += f"  Color: {target['color']['hex']}\n\n"
     
     # Add results
@@ -512,31 +598,41 @@ def export_data(n_clicks, loads, targets, results):
     filename = f"RLT_Report_{timestamp}.txt"
     
     return dict(content=content, filename=filename)
+
+
+@app.callback(
+    [Output('loads-store', 'data',allow_duplicate=True),
+     Output('targets-store', 'data',allow_duplicate=True)],
+    [Input('upload-data', 'contents')],
+    [State('upload-data', 'filename')],
+    prevent_initial_call=True
+)
+def update_stores_from_file(contents, filename):
+    if contents is None:
+        return dash.no_update, dash.no_update
+
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
     
-# Visualization helpers
-def create_vector(position, vector, color, name, legendgroup,triad_name):
-    magnitude = np.linalg.norm(vector)
-    # print(magnitude)
-    scale = max(0.5, min(2.0, magnitude/10))  # Auto-scale based on magnitude
-    
-    if magnitude<1e-6:
-        vector_x = 0.00
-        vector_y = 0.00
-        vector_z = 0.00
-    else:
-        vector_x = vector[0]/magnitude
-        vector_y = vector[1]/magnitude
-        vector_z = vector[2]/magnitude    
-        
-    x=float(position[0]) + vector_x*scale
-    y=float(position[1]) + vector_y*scale
-    z=float(position[2]) + vector_z*scale
-    
-    list_load = [[float(position[0]),float(position[1]),float(position[2])],[x,y,z]]
-    # print(list_load)
-    fig = plot3d.plot_lines_from_points(list_load, colors_tip=[color],size_tip=0.3, tip_hover_text=[f'{name}'], legendgroup = legendgroup,triad_name=triad_name)
-    # fig = plot3d.plot_lines_from_points(list_load)
-    fig.update_layout(showlegend=False)
-    return fig
+    try:
+        if filename.endswith('.json'):
+            data = json.loads(decoded.decode('utf-8'))
+            
+            # Convert angles from degrees to radians
+            for load in data.get('loads', []):
+                if 'euler_angles' in load:
+                    load['euler_angles'] = np.array(load['euler_angles']).tolist()
+            
+            for target in data.get('targets', []):
+                if 'euler_angles' in target:
+                    target['euler_angles'] = np.array(target['euler_angles']).tolist()
+            
+            return data.get('loads', []), data.get('targets', [])
+            
+        else:
+            raise ValueError("Unsupported file format")
+    except Exception as e:
+        print(f"Error parsing file: {e}")
+        return dash.no_update, dash.no_update   
 if __name__ == '__main__':
     app.run_server(debug=True, use_reloader=False)
