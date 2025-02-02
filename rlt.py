@@ -424,6 +424,13 @@ def update_visualization(loads, targets):
                 fig_mom  = plot3d.create_vector(pos, R @ load['moment'], color, f'Moment:{load['moment']}', legendgroup= f'force_group{i}',triad_name = f"{load_name}:Moment")
                 fig = go.Figure(data = fig.data + fig_mom.data)
                 
+            # Add connection lines to all targets
+            for j, target in enumerate(targets):
+                # Create a slightly lighter version of the load color for the connection line
+                line_color = color  # You can also create a lighter shade if desired  
+                # Add connection line
+                fig.add_trace(plot3d.create_connection_line(load['translation'],target['translation'],line_color)) 
+                
         except Exception as e:
             print(f"Error processing load {i}: {e}")
 

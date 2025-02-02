@@ -70,6 +70,21 @@ def create_vector(position, vector, color='red', name=None, legendgroup= None, t
     # fig = plot3d.plot_lines_from_points(list_load)
     fig.update_layout(showlegend=False)
     return fig 
+
+def create_connection_line(start_point, end_point, color='gray'):
+    """Create a dashed line connecting two points"""
+    return go.Scatter3d(
+        x=[start_point[0], end_point[0]],
+        y=[start_point[1], end_point[1]],
+        z=[start_point[2], end_point[2]],
+        mode='lines',
+        line=dict(
+            color=color,
+            dash='dot',  # 'dot', 'dash', 'dashdot'
+            width=2
+        ),
+        showlegend=False
+    )
 # #---------------------------------------
 def plot_3d_point(list):
     """
