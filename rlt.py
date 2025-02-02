@@ -1,3 +1,11 @@
+"""
+@Author:    Pramod Kumar Yadav
+@email:     pkyadav01234@gmail.com
+@Date:      Feb, 2025
+@status:    development
+@PythonVersion: python3
+
+"""
 import dash
 from dash import dcc, html, Input, Output, State, callback, dash_table, ALL
 import plotly.graph_objects as go

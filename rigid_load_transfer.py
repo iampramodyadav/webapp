@@ -1,3 +1,11 @@
+"""
+@Author:    Pramod Kumar Yadav
+@email:     pkyadav01234@gmail.com
+@Date:      Feb, 2025
+@status:    development
+@PythonVersion: python3
+
+"""
 import numpy as np
 
 def create_rotation_matrix(euler_angles, rotation_order, translation):
