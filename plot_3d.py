@@ -7,208 +7,17 @@
 
 """
 # Import dependencies
-import plotly
-import plotly.graph_objs as go
+import dash
+from dash import dcc, html, Input, Output, State, callback, dash_table, ALL
+import plotly.graph_objects as go
 import numpy as np
-import pandas as pd
-import plotly
-import plotly.graph_objs as go
-import numpy as np
-import pandas as pd
-
-import plotly
-import plotly.graph_objs as go
-import numpy as np
-import pandas as pd
+import json
+import base64
+import io
+# import dash_daq as daq
+import plot_3d as plot3d
+import rigid_load_transfer as rlt
 #---------------------------------------
-
-# def plot_3d_point(list):
-#     """
-#     Plots a 3D point cloud.
-
-#     Args:
-#         list (list): A list of 3D points, each point is a list of three numbers.
-
-#     Returns:
-#         None.
-#     """    
-#     x_data=[list[i][0] for i in range(len(list))]
-#     y_data=[list[i][1] for i in range(len(list))]
-#     z_data=[list[i][2] for i in range(len(list))]
-    
-#     trace = go.Scatter3d(
-#         x=x_data,
-#         y=y_data,
-#         z=z_data,
-#         mode ='markers',
-#         marker = dict(size= 10,opacity= 0.9,color=z_data, colorscale='plotly3'))
-    
-#     # Configure the layout.
-#     layout = go.Layout(margin={'l': 0, 'r': 0, 'b': 0, 't': 10})
-#     data = [trace]
-#     plot_figure = go.Figure(data=data, layout=layout)
-#     plot_figure.update_layout(width=600,height=500,)
-#     return plot_figure
-
-# #---------------------------------------
-# def plot_arrow_tip(point_pair, sizetip=0.5, color='darkblue', name=None, showlegend=False):
-#     """
-#     Plots a vector tip cone from head and tail.
-
-#     Args:
-#         point_pair (list): A list of two points, the first point is the tail and the second point is the head.
-#         sizetip (float): The size of the cone tip. (default=0.5)
-#         color (str): Color of the cone. (default='darkblue')
-#         name (str): Name for the legend. (default=None)
-#         showlegend (bool): Whether to show this in legend. (default=False)
-
-#     Returns:
-#         fig (go.Figure): A plotly figure object.
-#     """
-#     x_data=[point_pair[i][0] for i in range(len(point_pair))]
-#     y_data=[point_pair[i][1] for i in range(len(point_pair))]
-#     z_data=[point_pair[i][2] for i in range(len(point_pair))]
-
-#     vec_cone = np.array(point_pair[1])-np.array(point_pair[0])
-#     vec_norm = np.linalg.norm(vec_cone)
-    
-#     u = vec_cone[0]/vec_norm
-#     v = vec_cone[1]/vec_norm
-#     w = vec_cone[2]/vec_norm
-
-#     fig = go.Figure(data=go.Cone(
-#         x=[x_data[1]],
-#         y=[y_data[1]],
-#         z=[z_data[1]],
-#         u=[u],
-#         v=[v],
-#         w=[w],
-#         showscale=False,
-#         sizemode="scaled",
-#         sizeref=sizetip,
-#         anchor="tip",
-#         colorscale=[[0, color], [1, color]],
-#         name=name,
-#         showlegend=showlegend))
-    
-#     fig.update_layout(title = '3D Vector Tip Plot',width=500,height=400,)
-#     return fig
-    
-# def plot_3d_line(list, color='darkblue', width=2, opacity=0.5, colorscale=None, name=None):
-#     """
-#     Plots a 3D line.
-
-#     Args:
-#         list (list): A list of 3D points, each point is a list of three numbers.
-#         color (str): Color of the line. Ignored if colorscale is provided. (default='darkblue')
-#         width (int): Width of the line. (default=2)
-#         opacity (float): Opacity of the line. (default=0.5)
-#         colorscale (str): Name of the colorscale to use. If provided, colors the line according to z values. (default=None)
-#         name (str): Name for the legend. (default=None)
-
-#     Returns:
-#         go.Figure.
-#     """
-#     x_data=[list[i][0] for i in range(len(list))]
-#     y_data=[list[i][1] for i in range(len(list))]
-#     z_data=[list[i][2] for i in range(len(list))]
-    
-#     marker_dict = dict(
-#         size=5,
-#         opacity=opacity
-#     )
-    
-#     line_dict = dict(width=width)
-    
-#     if colorscale:
-#         marker_dict.update(dict(
-#             color=z_data,
-#             colorscale=colorscale
-#         ))
-#         line_dict.update(dict(
-#             color=z_data,
-#             colorscale=colorscale
-#         ))
-#     else:
-#         line_dict.update(dict(color=color))
-    
-#     trace=go.Scatter3d(
-#         x=x_data, 
-#         y=y_data, 
-#         z=z_data,
-#         marker=marker_dict,
-#         line=line_dict,
-#         name=name
-#     )
-    
-#     # Configure the layout.
-#     layout = go.Layout(margin={'l': 0, 'r': 0, 'b': 0, 't': 30})
-#     data = [trace]
-#     plot_figure = go.Figure(data=data, layout=layout)
-#     plot_figure.update_layout(title = '3D Line Plot',width=500,height=400,)
-#     return plot_figure
-    
-# #---------------------------------------
-# def plot_lines_from_points(first_pair, *list_pair, size_tip=0.1, colors_line=None,  colors_tip=None, colorscale=None, names=None, title="3D Vector Plot"):
-#     """
-#     Plots a series of 3D lines from a list of 3D points.
-
-#     Args:
-#         first_pair (list): First list of 3D points that form a line.
-#         *list_pair: Additional lists of 3D points that form lines.
-#         size_tip (float): The size of the cone tip. (default=0.1)
-#         colors (list): List of colors for each line. If not provided, uses 'darkblue' for all lines.
-#         colorscale (str): Name of the colorscale to use. If provided, colors lines according to z values.
-#         names (list): List of names for the legend. If not provided, uses "Line 1", "Line 2", etc.
-#         title (str): Title for the plot. (default="3D Vector Plot")
-
-#     Returns:
-#         go.Figure.
-#     """
-#     if colors_line is None:
-#         colors_line = ['darkblue'] * (len(list_pair) + 1)
-        
-#     if colors_tip is None:
-#         colors_tip = ['darkblue'] * (len(list_pair) + 1)   
-   
-#     if names is None:
-#         names = [f"Line {i+1}" for i in range(len(list_pair) + 1)]
-    
-#     # Create first line with legend entry
-#     fig1 = plot_3d_line(first_pair, color=colors_line[0], colorscale=colorscale, name=names[0])
-#     # Create arrow tip without legend entry
-#     fig0 = plot_arrow_tip(first_pair, sizetip=size_tip, color=colors_tip[0], name=names[0], showlegend=False)
-#     fig = go.Figure(data=fig1.data + fig0.data)
-    
-#     # Add remaining lines
-#     for i, pair in enumerate(list_pair, 1):
-#         fig1 = plot_3d_line(pair, color=colors_line[i], colorscale=colorscale, name=names[i])
-#         fig0 = plot_arrow_tip(pair, sizetip=size_tip, color=colors_tip[i], name=names[i], showlegend=False)
-        
-#         fig2 = go.Figure(data=fig.data + fig1.data + fig0.data)
-#         fig = fig2
-
-#     # Update layout with legend configuration
-#     fig.update_layout(
-#         margin={'l': 0, 'r': 0, 'b': 0, 't': 30},
-#         title=title,
-#         width=700,
-#         height=400,
-#         showlegend=True,
-#         legend=dict(
-#             yanchor="top",
-#             y=0.99,
-#             xanchor="right",
-#             x=0.99,
-#             bgcolor="rgba(255, 255, 255, 0.8)"
-#         )
-#     )
-#     return fig
-
-#---------------------------------------
-# #---------------------------------------
-import numpy as np
-
 # Calculation functions
 def create_rotation_matrix(euler_angles, rotation_order, translation):
     R = np.eye(3)
@@ -228,27 +37,40 @@ def _axis_rotation(axis, angle):
     elif axis == 'z':
         return np.array([[cos_a, -sin_a, 0], [sin_a, cos_a, 0], [0, 0, 1]])
     raise ValueError(f"Invalid axis: {axis}")
-# #---------------------------------------
-# def plot_triad(R, rotation_order, Position, colour_triad =['red', 'green','blue'],colors_arr = 'magenta', tip_size = 0.1,len_triad = 1 ):
-    
-#     R_A, pos = create_rotation_matrix(R, rotation_order, Position)
-#     x = R_A @ np.array([1,0,0])
-#     y = R_A @ np.array([0,1,0])
-#     z = R_A @ np.array([0,0,1])
-    
-#     x =x*len_triad/np.linalg.norm(x)
-#     y =y*len_triad/np.linalg.norm(y)
-#     z =z*len_triad/np.linalg.norm(z)
-    
-#     list1 = [pos, pos+x]
-#     list2 = [pos, pos+y]
-#     list3 = [pos, pos+z]
 
-#     fig = plot_lines_from_points(list1, list2, list3, size_tip=tip_size, 
-#                            colors_line = colour_triad, 
-#                            colors_tip=[colors_arr]*3)
-#     fig.update_layout(scene_aspectmode='data')
-#     return fig
+def rigid_load_transfer(force_local_A, moment_local_A, R_A, point_A_global, R_B, point_B_global):
+    force_global = R_A @ force_local_A
+    moment_global = R_A @ moment_local_A
+    r = point_A_global - point_B_global
+    moment_global += np.cross(r, force_global)
+    return R_B.T @ force_global, R_B.T @ moment_global
+# #---------------------------------------
+# Visualization helpers
+def create_vector(position, vector, color='red', name=None, legendgroup= None, triad_name=None):
+    magnitude = np.linalg.norm(vector)
+    # print(magnitude)
+    scale = max(0.5, min(2.0, magnitude/10))  # Auto-scale based on magnitude
+    
+    if magnitude<1e-6:
+        vector_x = 0.00
+        vector_y = 0.00
+        vector_z = 0.00
+    else:
+        vector_x = vector[0]/magnitude
+        vector_y = vector[1]/magnitude
+        vector_z = vector[2]/magnitude    
+        
+    x=float(position[0]) + vector_x*scale
+    y=float(position[1]) + vector_y*scale
+    z=float(position[2]) + vector_z*scale
+    
+    list_load = [[float(position[0]),float(position[1]),float(position[2])],[x,y,z]]
+    # print(list_load)
+    fig = plot_lines_from_points(list_load, colors_tip=[color],size_tip=0.3, tip_hover_text=[name], legendgroup = legendgroup,triad_name=triad_name)
+    # fig = plot3d.plot_lines_from_points(list_load)
+    fig.update_layout(showlegend=False)
+    return fig 
+# #---------------------------------------
 def plot_3d_point(list):
     """
     Plots a 3D point cloud.

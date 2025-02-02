@@ -7,64 +7,13 @@ import base64
 import io
 # import dash_daq as daq
 import plot_3d as plot3d
+import rigid_load_transfer as rlt
 
-import plot_3d as plot3d
-def create_rotation_matrix(euler_angles, rotation_order, translation):
-    R = np.eye(3)
-    for axis in reversed(rotation_order.lower()):
-        idx = rotation_order.lower().index(axis)
-        angle = euler_angles[idx]
-        R = R @ _axis_rotation(axis, angle)
-    return R, np.array(translation)
-
-def _axis_rotation(axis, angle):
-    cos_a = np.cos(angle)
-    sin_a = np.sin(angle)
-    if axis == 'x':
-        return np.array([[1, 0, 0], [0, cos_a, -sin_a], [0, sin_a, cos_a]])
-    elif axis == 'y':
-        return np.array([[cos_a, 0, sin_a], [0, 1, 0], [-sin_a, 0, cos_a]])
-    elif axis == 'z':
-        return np.array([[cos_a, -sin_a, 0], [sin_a, cos_a, 0], [0, 0, 1]])
-    raise ValueError(f"Invalid axis: {axis}")
-
-def rigid_load_transfer(force_local_A, moment_local_A, R_A, point_A_global, R_B, point_B_global):
-    force_global = R_A @ force_local_A
-    moment_global = R_A @ moment_local_A
-    r = point_A_global - point_B_global
-    moment_global += np.cross(r, force_global)
-    return R_B.T @ force_global, R_B.T @ moment_global
-    
-# Visualization helpers
-def create_vector(position, vector, color=None, name=None, legendgroup= None,triad_name=None):
-    magnitude = np.linalg.norm(vector)
-    # print(magnitude)
-    scale = max(0.5, min(2.0, magnitude/10))  # Auto-scale based on magnitude
-    
-    if magnitude<1e-6:
-        vector_x = 0.00
-        vector_y = 0.00
-        vector_z = 0.00
-    else:
-        vector_x = vector[0]/magnitude
-        vector_y = vector[1]/magnitude
-        vector_z = vector[2]/magnitude    
-        
-    x=float(position[0]) + vector_x*scale
-    y=float(position[1]) + vector_y*scale
-    z=float(position[2]) + vector_z*scale
-    
-    list_load = [[float(position[0]),float(position[1]),float(position[2])],[x,y,z]]
-    # print(list_load)
-    fig = plot3d.plot_lines_from_points(list_load, colors_tip=[color],size_tip=0.3, tip_hover_text=[name], legendgroup = legendgroup,triad_name=triad_name)
-    # fig = plot3d.plot_lines_from_points(list_load)
-    fig.update_layout(showlegend=False)
-    return fig 
-    
+# --------------------------------- Initialize Dash app ----------------------------------
 # Initialize Dash app
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
-
+# ---------------------------------------- layout ----------------------------------------
 app.layout = html.Div([
     html.H1("Rigid Load Transfer Analysis", style={
         'textAlign': 'center', 
@@ -118,8 +67,6 @@ app.layout = html.Div([
             }),
             html.Div(id='target-inputs-container', style={'marginTop': '10px'}),
             
-
-            
             # Add the export button to your layout (in the input systems section)
             html.Button('💾 Export Data', id='export-btn', style={
                 'width': '100%', 
@@ -162,7 +109,7 @@ app.layout = html.Div([
         ], style={'width': '75%', 'height': '80vh',}),
     ], style={'display': 'flex', 'justifyContent': 'space-between', 'gap': '20px', 'padding': '20px'})
 ])
-
+# ---------------------------------------- Callbacks ----------------------------------------
 # Callbacks for adding systems
 @app.callback(
     Output('loads-store', 'data'),
@@ -172,6 +119,7 @@ app.layout = html.Div([
 )
 def add_load_system(n_clicks, data):
     new_load = {
+        'name': f'Load System {len(data) + 1}',  # Default name
         'force': [0.0, 0.0, 0.0],
         'moment': [0.0, 0.0, 0.0],
         'euler_angles': [0.0, 0.0, 0.0],
@@ -189,6 +137,7 @@ def add_load_system(n_clicks, data):
 )
 def add_target_system(n_clicks, data):
     new_target = {
+        'name': f'Target System {len(data) + 1}',  # Default name
         'euler_angles': [0.0, 0.0, 0.0],
         'rotation_order': 'xyz',
         'translation': [0.0, 0.0, 0.0],
@@ -216,11 +165,15 @@ def update_input_components(loads, targets):
             controls.append(
                     html.Div([
                     html.H5(f"{input_type.capitalize()} System {i+1}"),
-                   #  daq.ColorPicker(
-                   #     id={'type': 'color-picker', 'index': i, 'input-type': input_type},
-                   #     value=item['color'],
-                   #     label='System Color'
-                   # ),
+                    html.Div([
+                        html.Label("System Name:"),
+                        dcc.Input(
+                            value=item.get('name', f'{input_type.capitalize()} System {i+1}'),
+                            type='text',
+                            id={'type': 'name', 'index': i, 'input-type': input_type},
+                            style={'width': '200px'})
+                    ], style={'marginBottom': '10px'}),
+                        
                     html.Div([
                         html.Label("Position(X,Y,Z):"),
                         dcc.Input(value=item['translation'][0], type='number',
@@ -295,7 +248,8 @@ def update_input_components(loads, targets):
 @app.callback(
     [Output('loads-store', 'data', allow_duplicate=True),
      Output('targets-store', 'data', allow_duplicate=True)],
-    [Input({'type': 'tx', 'index': ALL, 'input-type': ALL}, 'value'),
+    [Input({'type': 'name', 'index': ALL, 'input-type': ALL}, 'value'),
+     Input({'type': 'tx', 'index': ALL, 'input-type': ALL}, 'value'),
      Input({'type': 'ty', 'index': ALL, 'input-type': ALL}, 'value'),
      Input({'type': 'tz', 'index': ALL, 'input-type': ALL}, 'value'),
      Input({'type': 'rx', 'index': ALL, 'input-type': ALL}, 'value'),
@@ -312,7 +266,7 @@ def update_input_components(loads, targets):
      State('targets-store', 'data')],
     prevent_initial_call=True
 )
-def update_stores(tx, ty, tz, rx, ry, rz, 
+def update_stores(name,tx, ty, tz, rx, ry, rz, 
                  fx, fy, fz, mx, my, mz, rot_orders,
                  loads, targets):
     ctx = dash.callback_context
@@ -342,6 +296,10 @@ def update_stores(tx, ty, tz, rx, ry, rz,
                 
                 # Get the corresponding value from the triggered input
                 value = ctx.triggered[trigger_idx]['value']
+                # Handle null/empty values for numeric inputs
+                if value_type in ['tx', 'ty', 'tz', 'rx', 'ry', 'rz', 'fx', 'fy', 'fz', 'mx', 'my', 'mz']:
+                    value = 0.0 if value is None or value == '' else float(value)
+                # input_values[input_type][index][value_type] = value
                 input_values[input_type][index][value_type] = value
                 
             except Exception as e:
@@ -353,6 +311,8 @@ def update_stores(tx, ty, tz, rx, ry, rz,
         if i in input_values.get('load', {}):
             vals = input_values['load'][i]
             
+            if 'name' in vals:
+                loads[i]['name'] = vals['name']            
             # Update translation
             if any(k in vals for k in ['tx', 'ty', 'tz']):
                 loads[i]['translation'] = [
@@ -393,7 +353,8 @@ def update_stores(tx, ty, tz, rx, ry, rz,
     for i in range(len(targets)):
         if i in input_values.get('target', {}):
             vals = input_values['target'][i]
-            
+            if 'name' in vals:
+                targets[i]['name'] = vals['name']       
             # Update translation
             if any(k in vals for k in ['tx', 'ty', 'tz']):
                 targets[i]['translation'] = [
@@ -433,10 +394,11 @@ def update_visualization(loads, targets):
     # Process loads
     for i, load in enumerate(loads):
         try:
+            load_name = load.get('name', f'Load System {i+1}')
             if isinstance(load['color'], str):  # Handle legacy format
                 load['color'] = {'hex': load['color']}
 
-            R, pos = create_rotation_matrix(
+            R, pos = rlt.create_rotation_matrix(
                 np.radians(load['euler_angles']),
                 # np.array(load['euler_angles']),
                 load['rotation_order'],
@@ -449,17 +411,17 @@ def update_visualization(loads, targets):
                                          load['rotation_order'],
                                          load['translation'], 
                                          tip_size = 0.5, len_triad = 1,colors_arr = color,
-                                         triad_name = f"InputCSYS{i+1}", legendgroup= f'group{i}')
+                                         triad_name = f"{load_name}:InputCSYS", legendgroup= f'group{i}')
             fig = go.Figure(data = fig.data + fig_load.data)
             # fig.add_traces(create_triad(pos, R, color))
 
             # Add vectors
             if 'force' in load:
-                fig_force = create_vector(pos, R @ load['force'], color, f'Force:{load['force']}', legendgroup= f'force_group{i}',triad_name = f"Force{i+1}")
+                fig_force = plot3d.create_vector(pos, R @ load['force'], color, f'Force:{load['force']}', legendgroup= f'force_group{i}',triad_name = f"{load_name}:Force")
                 fig = go.Figure(data = fig.data + fig_force.data)
             if 'moment' in load:
                 # fig.add_trace(create_vector(pos, R @ load['moment'], color, f'Load {i+1} Moment'))
-                fig_mom  = create_vector(pos, R @ load['moment'], color, f'Moment:{load['moment']}', legendgroup= f'force_group{i}',triad_name = f"Moment{i+1}")
+                fig_mom  = plot3d.create_vector(pos, R @ load['moment'], color, f'Moment:{load['moment']}', legendgroup= f'force_group{i}',triad_name = f"{load_name}:Moment")
                 fig = go.Figure(data = fig.data + fig_mom.data)
                 
         except Exception as e:
@@ -468,10 +430,11 @@ def update_visualization(loads, targets):
     # Process targets
     for i, target in enumerate(targets):
         try:
+            target_name = target.get('name', f'Target {i+1}')
             if isinstance(target['color'], str):  # Handle legacy format
                 target['color'] = {'hex': target['color']}
-
-            R_target, pos_target = create_rotation_matrix(
+            # target_name = load.get('name', f'Load System {i+1}')
+            R_target, pos_target = rlt.create_rotation_matrix(
                 np.radians(target['euler_angles']),
                 # np.array(target['euler_angles']),
                 target['rotation_order'],
@@ -484,7 +447,7 @@ def update_visualization(loads, targets):
                                          target['rotation_order'],
                                          target['translation'], 
                                          tip_size = 0.5, len_triad = 1,colors_arr = color,
-                                         triad_name = f"OutCSYS{i+1}", legendgroup= f'Out_group{i}')
+                                         triad_name = f"{target_name}:OutCSYS", legendgroup= f'Out_group{i}')
             fig = go.Figure(data = fig.data + fig_load.data)
             
             # fig.add_traces(create_triad(pos_target, R_target, color))
@@ -492,13 +455,13 @@ def update_visualization(loads, targets):
             # Calculate results
             total_F, total_M = np.zeros(3), np.zeros(3)
             for load in loads:
-                R_load, pos_load = create_rotation_matrix(
+                R_load, pos_load = rlt.create_rotation_matrix(
                     np.radians(load['euler_angles']),
                     # np.array(load['euler_angles']),
                     load['rotation_order'],
                     load['translation']
                 )
-                F, M = rigid_load_transfer(
+                F, M = rlt.rigid_load_transfer(
                     np.array(load['force']),
                     np.array(load['moment']),
                     R_load, pos_load,
@@ -508,7 +471,8 @@ def update_visualization(loads, targets):
                 total_M += M
 
             results.append({
-                'System': f'Target {i+1}',
+                # 'System': f'Target {i+1}',
+                'System': target.get('name', f'Target {i+1}'),
                 'Fx': f"{total_F[0]:.2f}", 'Fy': f"{total_F[1]:.2f}", 'Fz': f"{total_F[2]:.2f}",
                 'Mx': f"{total_M[0]:.2f}", 'My': f"{total_M[1]:.2f}", 'Mz': f"{total_M[2]:.2f}"
             })
@@ -565,7 +529,8 @@ def export_data(n_clicks, loads, targets, results):
     # Add loads information
     content += "=== Input Load Systems ===\n"
     for i, load in enumerate(loads):
-        content += f"Load System {i+1}:\n"
+        content += f"{load.get('name', f'Load System {i+1}')}:\n"
+        # content += f"Load System {i+1}:\n"
         content += f"  Position (X,Y,Z): {load['translation']}\n"
         content += f"  Rotation Order: {load['rotation_order']}\n"
         content += f"  Euler Angles (deg): {load['euler_angles']}\n"
@@ -576,7 +541,8 @@ def export_data(n_clicks, loads, targets, results):
     # Add targets information
     content += "\n=== Target Systems ===\n"
     for i, target in enumerate(targets):
-        content += f"Target System {i+1}:\n"
+        content += f"{target.get('name', f'Target {i+1}')}:\n"
+        # content += f"Target System {i+1}:\n"
         content += f"  Position (X,Y,Z): {target['translation']}\n"
         content += f"  Rotation Order: {target['rotation_order']}\n"
         content += f"  Euler Angles (deg): {target['euler_angles']}\n"
@@ -633,6 +599,7 @@ def update_stores_from_file(contents, filename):
             raise ValueError("Unsupported file format")
     except Exception as e:
         print(f"Error parsing file: {e}")
-        return dash.no_update, dash.no_update   
+        return dash.no_update, dash.no_update
+        
 if __name__ == '__main__':
     app.run_server(debug=True, use_reloader=False)
